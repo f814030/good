@@ -117,14 +117,16 @@ fetch('school.geojson')
             color: '#43a047',
             fillColor: '#b9f6ca',
             fillOpacity: 0.3,
-            radius: 300
+            radius: 300,
+	    interactive: false // 不阻擋點擊
         }).addTo(map);
 
         window._bufferCircle500 = L.circle(center, {
             color: '#ffb300',
             fillColor: '#ffe082',
             fillOpacity: 0.2,
-            radius: 500
+            radius: 500,
+	    interactive: false // 不阻擋點擊
         }).addTo(map);
 
         // 4. 地圖平移（形心向北偏移）
