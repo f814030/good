@@ -99,41 +99,73 @@ fetch('school.geojson')
         return styleObj;
       },
       onEachFeature: function(feature, layer) {
-    // --------- 點擊色塊畫同心圓 -----------
-    layer.on('click', function(e) {
-        // 1. 先移除舊圓
-        if(window._bufferCircle300) map.removeLayer(window._bufferCircle300);
-        if(window._bufferCircle500) map.removeLayer(window._bufferCircle500);
+// --------- 點擊色塊畫同心圓並加上標籤 -----------
+layer.on('click', function(e) {
+    // 1. 先移除舊圓與舊標籤
+    if(window._bufferCircle300) map.removeLayer(window._bufferCircle300);
+    if(window._bufferCircle500) map.removeLayer(window._bufferCircle500);
+    if(window._bufferCircleLabel300) map.removeLayer(window._bufferCircleLabel300);
+    if(window._bufferCircleLabel500) map.removeLayer(window._bufferCircleLabel500);
 
-        // 2. 計算形心
-        var latlngs = feature.geometry.coordinates[0].map(function(coord) {
-            return [coord[1], coord[0]];
-        });
-        var bounds = L.latLngBounds(latlngs);
-        var center = bounds.getCenter();
-
-        // 3. 繪製 300m、500m 圓
-        window._bufferCircle300 = L.circle(center, {
-            color: '#43a047',
-            fillColor: '#b9f6ca',
-            fillOpacity: 0.3,
-            radius: 300,
-	    interactive: false // 不阻擋點擊
-        }).addTo(map);
-
-        window._bufferCircle500 = L.circle(center, {
-            color: '#ffb300',
-            fillColor: '#ffe082',
-            fillOpacity: 0.2,
-            radius: 500,
-	    interactive: false // 不阻擋點擊
-        }).addTo(map);
-
-        // 4. 地圖平移（形心向北偏移）
-        map.panTo([center.lat + 0.0015, center.lng]);
+    // 2. 計算形心
+    var latlngs = feature.geometry.coordinates[0].map(function(coord) {
+        return [coord[1], coord[0]];
     });
-    // --------- 同心圓功能結束 -----------
-    
+    var bounds = L.latLngBounds(latlngs);
+    var center = bounds.getCenter();
+
+    // 畫 300m、500m 圓（不互動）
+    window._bufferCircle300 = L.circle(center, {
+        color: '#43a047',
+        fillColor: '#b9f6ca',
+        fillOpacity: 0.3,
+        radius: 300,
+        interactive: false
+    }).addTo(map);
+    window._bufferCircle500 = L.circle(center, {
+        color: '#ffb300',
+        fillColor: '#ffe082',
+        fillOpacity: 0.2,
+        radius: 500,
+        interactive: false
+    }).addTo(map);
+
+    // 取緯度往北偏移 meters 公尺
+    function latOffset(center, meters) {
+        return center.lat + (meters / 111320);
+    }
+    // 圓頂標籤
+    window._bufferCircleLabel300 = L.marker(
+        [latOffset(center, 300), center.lng],
+        {
+            icon: L.divIcon({
+                className: 'circle-label',
+                html: '<div style="color:#388e3c; font-weight:bold; font-size:16px; background:rgba(255,255,255,0.85); border-radius:8px; padding:1px 8px; border:1px solid #43a047;">300m</div>',
+                iconSize: [40, 20],
+                iconAnchor: [20, 10]
+            }),
+            interactive: false
+        }
+    ).addTo(map);
+
+    window._bufferCircleLabel500 = L.marker(
+        [latOffset(center, 500), center.lng],
+        {
+            icon: L.divIcon({
+                className: 'circle-label',
+                html: '<div style="color:#ff6f00; font-weight:bold; font-size:16px; background:rgba(255,255,255,0.85); border-radius:8px; padding:1px 8px; border:1px solid #ffb300;">500m</div>',
+                iconSize: [40, 20],
+                iconAnchor: [20, 10]
+            }),
+            interactive: false
+        }
+    ).addTo(map);
+
+    // 4. 地圖平移（形心向北偏移）
+    map.panTo([center.lat + 0.0015, center.lng]);
+});
+// --------- 同心圓功能結束 -----------
+
         var props = feature.properties;
         var info = '';
         for (var key in props) {
