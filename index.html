@@ -187,12 +187,12 @@
                             // --- 產生圓頂右側「清除同心圓」按鈕 ---
                             if (window._bufferCircleClearBtn) map.removeLayer(window._bufferCircleClearBtn);
                             window._bufferCircleClearBtn = L.marker(
-                                [latOffset(center, 500), center.lng + 0.0012], {
+                                [latOffset(center, 500) + 0.00018, center.lng + 0.0012], { // 上移約20公尺，右移
                                     icon: L.divIcon({
                                         className: 'circle-clear-btn',
-                                        html: '<button onclick="window.removeCircles();" style="background:#ff6f00;color:#fff;font-weight:bold;border:none;border-radius:8px;padding:4px 14px;font-size:15px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.10);">清除同心圓</button>',
-                                        iconSize: [100, 30],
-                                        iconAnchor: [50, 15]
+                                        html: '<button title="只清除同心圓" onclick="window.removeCircles();" style="background:#fff;color:#ff6f00;font-weight:bold;border:1px solid #ffb300;border-radius:12px;padding:2px 12px;font-size:13px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.08);">清除</button>',
+                                        iconSize: [52, 28],
+                                        iconAnchor: [26, 14]
                                     }),
                                     interactive: true
                                 }
