@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 
 <head>
-<!--    <script>
+    <script>
         document.addEventListener('contextmenu', event => event.preventDefault());
         document.addEventListener('keydown', function(e) {
             if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I') || (e.ctrlKey && e.key === 'u')) {
@@ -10,7 +10,7 @@
             }
         });
     </script>
--->
+
     <meta charset="UTF-8">
     <meta name="description" content="塭仔圳重劃區推案進度與土地分配圖，新莊泰山塭仔圳最新推案地圖、社宅預定地、抵費地、公園用地即時查詢，協助掌握投資與購屋決策。">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -123,7 +123,7 @@
                         return styleObj;
                     },
                     onEachFeature: function(feature, layer) {
-						window._featureLayers.push({feature: feature, layer: layer});
+
                         // ----- 點擊色塊產生同心圓與標籤 -----
                         layer.on('click', function(e) {
                             // 1. 先移除舊圓和舊標籤/按鈕
@@ -282,7 +282,6 @@
                         });
                     }
                 }).addTo(map);
-                
             })
             .catch(error => console.error('GeoJSON 加載失敗:', error));
     </script>
@@ -307,56 +306,59 @@
         }
 
         // 呼叫一次以收集
-        //setTimeout(collectFeatureLayers, 1000); // 確保 geojson 載入完成
+        setTimeout(collectFeatureLayers, 1000); // 確保 geojson 載入完成
 
-		window._shiningIntervals = [];
-		window._highlightedLayers = [];
-
-		function clearShining() {
-		    window._shiningIntervals.forEach(obj => clearInterval(obj.intv));
-		    window._shiningIntervals = [];
-		    window._highlightedLayers.forEach(obj => {
-		        if (obj && obj.layer) obj.layer.setStyle({
-		            weight: 1,
-		            color: getColor(obj.feature),
-		            fillOpacity: 0.6,
-		            opacity: 1
-		        });
-		    });
-		    window._highlightedLayers = [];
-		}
-
-		function highlightSearchedPolygons(keyword) {
-		    clearShining();
-		    if (!keyword) return;
-		    window._featureLayers.forEach(function(obj) {
-		        const m = obj.feature.properties.管理人 || '';
-		        if (stripMask(m).indexOf(stripMask(keyword)) !== -1) {
-		            // 閃爍特效：兩色交替
-		            let showAlt = false;
-		            let intv = setInterval(() => {
-		                obj.layer.setStyle({
-		                    fillColor: showAlt ? "#fffde7" : "#ffe082", // 柔黃 <-> 淺金
-		                    fillOpacity: 0.93,
-		                    color: '#FFD600',
-		                    weight: 5
-		                });
-		                showAlt = !showAlt;
-		            }, 400);
-		            window._shiningIntervals.push({layer: obj.layer, intv: intv});
-		            window._highlightedLayers.push(obj);
-		        }
-		    });
-		}
+        function highlightSearchedPolygons(keyword) {
+            window._highlightedLayers.forEach(obj => {
+                obj.layer.setStyle({
+                    weight: 1,
+                    color: getColor(obj.feature),
+                    fillOpacity: 0.6,
+                    opacity: 1
+                });
+            });
+            window._highlightedLayers = [];
+            if (!keyword) return;
+            let foundFirst = false;
+            window._featureLayers.forEach(function(obj) {
+                const m = obj.feature.properties.管理人 || '';
+                if (stripMask(m).indexOf(stripMask(keyword)) !== -1) {
+                    obj.layer.setStyle({
+                        color: '#FF00EA',
+                        weight: 5,
+                        fillOpacity: 0.85,
+                        opacity: 1
+                    });
+                    window._highlightedLayers.push(obj);
+                    //第一個找到的色塊就自動聚焦到那個色塊
+                    /*if (!foundFirst) {
+                        map.fitBounds(obj.layer.getBounds());
+                        foundFirst = true;
+                    }*/
+                } else {
+                    obj.layer.setStyle({
+                        weight: 1,
+                        color: getColor(obj.feature),
+                        fillOpacity: 0.6,
+                        opacity: 1
+                    });
+                }
+            });
+        }
 
         document.getElementById('managerSearch').addEventListener('input', function(e) {
             highlightSearchedPolygons(e.target.value.trim());
         });
 
-		document.getElementById('clearHighlight').addEventListener('click', function() {
-		    clearShining();
-		    document.getElementById('managerSearch').value = '';
-		});
+        document.getElementById('clearHighlight').addEventListener('click', function() {
+            window._highlightedLayers.forEach(obj => {
+                obj.layer.setStyle({
+                    weight: 1,
+                    color: getColor(obj.feature),
+                    fillOpacity: 0.6,
+                    opacity: 1
+                });
+            });
             window._highlightedLayers = [];
             document.getElementById('managerSearch').value = '';
         });
