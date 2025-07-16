@@ -123,7 +123,7 @@
                         return styleObj;
                     },
                     onEachFeature: function(feature, layer) {
-
+						collectFeatureLayers();
                         // ----- 點擊色塊產生同心圓與標籤 -----
                         layer.on('click', function(e) {
                             // 1. 先移除舊圓和舊標籤/按鈕
@@ -282,7 +282,7 @@
                         });
                     }
                 }).addTo(map);
-                collectFeatureLayers();
+                
             })
             .catch(error => console.error('GeoJSON 加載失敗:', error));
     </script>
