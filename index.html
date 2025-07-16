@@ -330,10 +330,11 @@
                         opacity: 1
                     });
                     window._highlightedLayers.push(obj);
-                    if (!foundFirst) {
+                    //第一個找到的色塊就自動聚焦到那個色塊
+                    /*if (!foundFirst) {
                         map.fitBounds(obj.layer.getBounds());
                         foundFirst = true;
-                    }
+                    }*/
                 } else {
                     obj.layer.setStyle({
                         weight: 1,
