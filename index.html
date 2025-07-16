@@ -282,6 +282,7 @@
                         });
                     }
                 }).addTo(map);
+                collectFeatureLayers();
             })
             .catch(error => console.error('GeoJSON 加載失敗:', error));
     </script>
@@ -306,7 +307,7 @@
         }
 
         // 呼叫一次以收集
-        setTimeout(collectFeatureLayers, 1000); // 確保 geojson 載入完成
+        //setTimeout(collectFeatureLayers, 1000); // 確保 geojson 載入完成
 
 		window._shiningIntervals = [];
 		window._highlightedLayers = [];
