@@ -77,6 +77,26 @@
     let layerControl;      // 圖層控制器
     window._highlightedLayers = [];
     window._featureLayers = [];
+    
+    // === 低縮放自動隱藏便利商店 icon ===
+    const CONVENIENCE_MIN_ZOOM = 16;    // 低於這個 zoom 就隱藏（你可改 15/14）
+    let convenienceOverlayEnabled = true;  // 使用者目前是否在圖層控制器「有勾便利商店」
+
+    function setConvenienceIconsVisible(visible) {
+      if (!convenienceLayer) return;
+      convenienceLayer.eachLayer(mk => {
+        const el = mk.getElement && mk.getElement();
+        if (el) el.style.display = visible ? '' : 'none';  // 隱藏 / 顯示 icon
+      });
+    }
+
+    function updateConvenienceIconsVisibility() {
+      if (!convenienceLayer) return;
+      if (!convenienceOverlayEnabled) return;  // 使用者手動關掉時，不用管縮放
+      const shouldShow = map.getZoom() >= CONVENIENCE_MIN_ZOOM;
+      setConvenienceIconsVisible(shouldShow);
+    }
+
 
     // ====== 品牌圖示（PNG；不做縮放） ======
     function normalizeBrand(b) {
@@ -285,10 +305,33 @@
             );
           }
         }).addTo(map);
+        convenienceOverlayEnabled = true;      // 初始視為有勾選
+        updateConvenienceIconsVisibility();     // 依目前 zoom 先決定要不要顯示
+
 
         tryAddLayerControl();
       })
       .catch(err => console.error('convenience.geojson 載入失敗：', err));
+      // === 低縮放自動顯示/隱藏便利商店 icon ===
+      // 縮放結束時，依門檻決定顯示/隱藏
+      map.on('zoomend', updateConvenienceIconsVisibility);
+
+      // 使用者在圖層控制器把「便利商店」打開時：標記狀態 + 依當前 zoom 決定顯示
+      map.on('overlayadd', (e) => {
+        if (e.layer === convenienceLayer) {
+          convenienceOverlayEnabled = true;
+          updateConvenienceIconsVisibility();
+        }
+      });
+
+      // 使用者在圖層控制器把「便利商店」關閉時：標記狀態（我們之後就不干預）
+      map.on('overlayremove', (e) => {
+        if (e.layer === convenienceLayer) {
+          convenienceOverlayEnabled = false;
+          // 也可立即把目前的 icon 收起來（可選）
+          setConvenienceIconsVisible(false);
+        }
+      });
   </script>
 
   <script>
