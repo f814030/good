@@ -107,22 +107,27 @@
       '7eleven':   ['7-eleven','7_11','7eleven','統一超商','seven'],
       'familymart':['familymart','全家','全家便利商店'],
       'hilife':    ['hi-life','hilife','萊爾富'],
-      'okmart':    ['ok','okmart','ok超商']
+      'okmart':    ['ok','okmart','ok超商'],
+      'layaburger':['laya','拉亞','拉亞漢堡']
     };
-    function brandKeyFrom(raw) {
-      const norm = normalizeBrand(raw);
-      if (['7eleven','familymart','hilife','okmart'].includes(norm)) return norm;
-      for (const k in BRAND_ALIASES) {
-        if (BRAND_ALIASES[k].some(a => normalizeBrand(a) === norm)) return k;
-      }
-      return null;
-    }
+	const KNOWN_BRANDS = ['7eleven','familymart','hilife','okmart','pxmart']; // ⬅ 加上 pxmart
+
+	function brandKeyFrom(rawBrand) {
+	  const norm = normalizeBrand(rawBrand);
+	  if (KNOWN_BRANDS.includes(norm)) return norm;          // 直接命中
+	  for (const k in BRAND_ALIASES) {                        // 別名比對
+	    if (BRAND_ALIASES[k].some(a => normalizeBrand(a) === norm)) return k;
+	  }
+	  return null;
+	}
+
     // 品牌 → 圖檔 URL
     const BRAND_ICON_URL = {
       '7eleven':   './img/brands/7eleven.png',
       'familymart':'./img/brands/familymart.png',
       'hilife':    './img/brands/hilife.png',
-      'okmart':    './img/brands/okmart.png'
+      'okmart':    './img/brands/okmart.png',
+      'layaburger':'./img/brands/layaburger.png'
     };
     // 使用 DivIcon 承載品牌圖片（不縮放）
     function makeBrandDivIcon(url) {
