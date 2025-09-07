@@ -140,7 +140,7 @@
         fetch('./data/map.geojson', { cache: 'no-store' })
             .then(response => response.json())
             .then(data => {
-                L.geoJSON(data, {
+                polygonsLayer  = L.geoJSON(data, {
                     style: function(feature) {
                         let styleObj = {
                             color: getColor(feature),
