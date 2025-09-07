@@ -279,6 +279,7 @@
             const p = feature.properties || {};
             layer.bindPopup(
               `<b>${p.名稱 || p.name || '便利商店'}</b>` +
+              (p.類型 || p.type || p.類別 ? `<br>類型：${p.類型 || p.type || p.類別}` : '') +
               (p.品牌 || p.brand ? `<br>品牌：${p.品牌 || p.brand}` : '') +
               (p.地址 || p.address ? `<br>地址：${p.地址 || p.address}` : '')
             );
