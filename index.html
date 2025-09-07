@@ -100,9 +100,15 @@
 
 
     // ====== 品牌圖示（PNG；不做縮放） ======
-    function normalizeBrand(b) {
-      return (b || '').toString().trim().toLowerCase().replace(/[^\w]/g, '');
-    }
+	function normalizeBrand(b) {
+	  return (b || '')
+	    .toString()
+	    .trim()
+	    .toLowerCase()
+	    .replace(/\s+/g, '')     // 移除空白
+	    .replace(/[._-]/g, '');  // 去掉常見分隔符（點/底線/連字符）
+	}
+
     const BRAND_ALIASES = {
       '7eleven':   ['7-eleven','7_11','7eleven','統一超商','seven'],
       'familymart':['familymart','全家','全家便利商店'],
@@ -323,17 +329,28 @@
 	  .then(r => r.json())
 	  .then(geo => {
 	    restaurantLayer = L.geoJSON(geo, {
-	      pointToLayer: (feature, latlng) => {
-	        // 先用🍴通用圖示；之後要改成 PNG 也很容易
-	        const icon = L.divIcon({
-	          html: '<span style="font-size:20px;line-height:1.1">🍴</span>',
-	          className: 'restaurant-icon',
-	          iconSize: [20, 20],
-	          iconAnchor: [10, 18],
-	          popupAnchor: [0, -16]
-	        });
-	        return L.marker(latlng, { icon });
-	      },
+		pointToLayer: (feature, latlng) => {
+		  const p = feature.properties || {};
+
+		  // 盡量從「品牌」抓；沒有品牌就從「名稱」猜（常見：名稱含品牌）
+		  const raw = (p.品牌 ?? p.brand ?? p.名稱 ?? p.name ?? '').toString();
+		  const key = brandKeyFrom(raw);
+		  const url = key ? BRAND_ICON_URL[key] : null;
+
+		  // 如果有對到品牌，就用你的品牌 PNG；否則維持 🍴
+		  const icon = url
+		    ? makeBrandDivIcon(url)
+		    : L.divIcon({
+		        html: '<span style="font-size:20px;line-height:1.1">🍴</span>',
+		        className: 'restaurant-icon',
+		        iconSize: [20, 20],
+		        iconAnchor: [10, 18],
+		        popupAnchor: [0, -16]
+		      });
+
+		  return L.marker(latlng, { icon });
+		},
+
 	      onEachFeature: (feature, layer) => {
 	        const p = feature.properties || {};
 	        layer.bindPopup(
