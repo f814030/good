@@ -409,15 +409,13 @@
             .then(r => r.json())
             .then(pts => {
                 convenienceLayer = L.geoJSON(pts, {
-                    pointToLayer: (feature, latlng) => {
-                        const p = feature.properties || {};
-                        const key = brandKeyFrom(p.品牌 ? ? p.brand ? ? '');
-                        const url = key ? BRAND_ICON_URL[key] : null;
-                        const icon = url ? makeBrandDivIcon(url) : FALLBACK_ICON;
-                        return L.marker(latlng, {
-                            icon
-                        });
-                    },
+					pointToLayer: (feature, latlng) => {
+					  const p = feature.properties || {};
+					  const key = brandKeyFrom(p.品牌 ?? p.brand ?? '');
+					  const url = key ? BRAND_ICON_URL[key] : null;
+					  const icon = url ? makeBrandDivIcon(url) : FALLBACK_ICON;
+					  return L.marker(latlng, { icon });
+					},
                     onEachFeature: (feature, layer) => {
                         const p = feature.properties || {};
                         layer.bindPopup(
