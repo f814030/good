@@ -41,11 +41,14 @@
             width: 100%;
             height: 100%;
         }
-		/* 讓品牌 icon 以「底部中央」為縮放中心，縮放更自然 */
-		.brand-icon {
-		  transform-origin: 50% 100%;
-		  transition: transform 120ms ease-out; /* 縮放更順 */
-		}
+
+        /* 讓品牌 icon 以「底部中央」為縮放中心，縮放更自然 */
+        .brand-icon {
+            transform-origin: 50% 100%;
+            transition: transform 120ms ease-out;
+            /* 縮放更順 */
+            display: block;
+        }
     </style>
 </head>
 
@@ -81,35 +84,38 @@
     <script>
         var map = L.map('map').setView([25.0403, 121.4358], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 20,attribution: '&copy; OpenStreetMap contributors'
+            maxZoom: 20,
+            attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-		// 依 zoom 算縮放倍率（可調整這些參數）
-		const SCALE_CONFIG = {
-		  baseZoom: 16,  // 在這個縮放等級時，倍率=1
-		  step: 0.2,     // 每多/少 1 級 zoom，倍率增減多少
-		  min: 0.5,      // 最小縮放倍率
-		  max: 1.3       // 最大縮放倍率
-		};
-		function clamp(x, a, b){ return Math.max(a, Math.min(b, x)); }
-		function scaleForZoom(z){
-		  const s = 1 + (z - SCALE_CONFIG.baseZoom) * SCALE_CONFIG.step;
-		  return +clamp(s, SCALE_CONFIG.min, SCALE_CONFIG.max).toFixed(2);
-		}
+        // 依 zoom 算縮放倍率（可調整這些參數）
+        const SCALE_CONFIG = {
+            baseZoom: 16, // 在這個縮放等級時，倍率=1
+            step: 0.2, // 每多/少 1 級 zoom，倍率增減多少
+            min: 0.5, // 最小縮放倍率
+            max: 1.3 // 最大縮放倍率
+        };
 
-		// 對便利商店圖層套用縮放（保留 Leaflet 的 translate3d，再接上 scale）
-		function applyMarkerScale(){
-		  if (!window.convenienceLayer) return;
-		  const s = scaleForZoom(map.getZoom());
-		  convenienceLayer.eachLayer(mk => {
-		    const el = mk.getElement && mk.getElement();
-		    if (!el) return;
-		    // 讀目前的 transform（Leaflet 會寫 translate3d），先移除舊的 scale 再加上新的
-		    const current = el.style.transform || window.getComputedStyle(el).transform || '';
-		    const clean = current.replace(/scale\([^)]+\)/, '').trim();
-		    el.style.transform = `${clean} scale(${s})`;
-		  });
-		}
+        function clamp(x, a, b) {
+            return Math.max(a, Math.min(b, x));
+        }
+
+        function scaleForZoom(z) {
+            const s = 1 + (z - SCALE_CONFIG.baseZoom) * SCALE_CONFIG.step;
+            return +clamp(s, SCALE_CONFIG.min, SCALE_CONFIG.max).toFixed(2);
+        }
+
+        // 對便利商店圖層套用縮放（保留 Leaflet 的 translate3d，再接上 scale）
+        function applyMarkerScale() {
+            if (!window.convenienceLayer) return;
+            const s = scaleForZoom(map.getZoom());
+            convenienceLayer.eachLayer(mk => {
+                const wrapper = mk.getElement && mk.getElement(); // <div class="brand-icon leaflet-marker-icon ...">
+                if (!wrapper) return;
+                const img = wrapper.querySelector('.brand-img'); // 內層 <img> 或 <span>
+                if (img) img.style.transform = `scale(${s})`;
+            });
+        }
 
         function getColor(feature) {
             if (feature.properties && feature.properties.color) {
@@ -117,86 +123,88 @@
             }
             return '#90aaad';
         }
-        function stripMask(str) { return (str || '').replace(/[○＊●_]/g, ''); }
 
-	    let polygonsLayer;     // 面層（./data/map.geojson）
-	    let convenienceLayer;  // 點層（./data/convenience.geojson）
-	    let layerControl;      // 圖層控制器
+        function stripMask(str) {
+            return (str || '').replace(/[○＊●_]/g, '');
+        }
+
+        let polygonsLayer; // 面層（./data/map.geojson）
+        let convenienceLayer; // 點層（./data/convenience.geojson）
+        let layerControl; // 圖層控制器
         window._highlightedLayers = [];
         window._featureLayers = [];
 
-	    // ====== 品牌圖示（請放置對應檔案：./img/brands/*.png） ======
-	    function normalizeBrand(b) {
-	      return (b || '').toString().trim().toLowerCase().replace(/[^\w]/g, '');
-	    }
-	    const BRAND_ALIASES = {
-	      '7eleven':    ['7-eleven','7_11','7eleven','統一超商','seven'],
-	      'familymart': ['familymart','全家','全家便利商店'],
-	      'hilife':     ['hi-life','hilife','萊爾富'],
-	      'okmart':     ['ok','okmart','ok超商']
-	    };
-	    function brandKeyFrom(raw) {
-	      const norm = normalizeBrand(raw);
-	      if (['7eleven','familymart','hilife','okmart'].includes(norm)) return norm;
-	      for (const k in BRAND_ALIASES) {
-	        if (BRAND_ALIASES[k].some(a => normalizeBrand(a) === norm)) return k;
-	      }
-	      return null;
-	    }
-		const BRAND_ICONS = {
-		  '7eleven': L.icon({
-		    iconUrl: './img/brands/7eleven.png',
-		    iconSize: [28, 28],
-		    iconAnchor: [14, 28],
-		    popupAnchor: [0, -24],
-		    className: 'brand-icon'
-		  }),
-		  'familymart': L.icon({
-		    iconUrl: './img/brands/familymart.png',
-		    iconSize: [28, 28],
-		    iconAnchor: [14, 28],
-		    popupAnchor: [0, -24],
-		    className: 'brand-icon'
-		  }),
-		  'hilife': L.icon({
-		    iconUrl: './img/brands/hilife.png',
-		    iconSize: [28, 28],
-		    iconAnchor: [14, 28],
-		    popupAnchor: [0, -24],
-		    className: 'brand-icon'
-		  }),
-		  'okmart': L.icon({
-		    iconUrl: './img/brands/okmart.png',
-		    iconSize: [28, 28],
-		    iconAnchor: [14, 28],
-		    popupAnchor: [0, -24],
-		    className: 'brand-icon'
-		  })
-		};
-	    const FALLBACK_ICON = L.divIcon({ html: '🏪', className: 'store-icon', iconSize: [24,24], iconAnchor: [12,12] });
+        // ====== 品牌圖示（請放置對應檔案：./img/brands/*.png） ======
+        function normalizeBrand(b) {
+            return (b || '').toString().trim().toLowerCase().replace(/[^\w]/g, '');
+        }
+        const BRAND_ALIASES = {
+            '7eleven': ['7-eleven', '7_11', '7eleven', '統一超商', 'seven'],
+            'familymart': ['familymart', '全家', '全家便利商店'],
+            'hilife': ['hi-life', 'hilife', '萊爾富'],
+            'okmart': ['ok', 'okmart', 'ok超商']
+        };
 
-	    // ====== 圖層控制器：等兩個層都載完再安裝 ======
-	    function tryAddLayerControl() {
-	      if (layerControl) { // 已存在就更新圖層集合
-	        layerControl.remove();
-	        layerControl = null;
-	      }
-	      if (polygonsLayer || convenienceLayer) {
-	        layerControl = L.control.layers(
-	          null,
-	          {
-	            //'土地分配': polygonsLayer || L.layerGroup(),(暫時關閉)
-	            '便利商店': convenienceLayer || L.layerGroup()
-	          },
-	          { collapsed: false }
-	        ).addTo(map);
-	      }
-	    }
+        function brandKeyFrom(raw) {
+            const norm = normalizeBrand(raw);
+            if (['7eleven', 'familymart', 'hilife', 'okmart'].includes(norm)) return norm;
+            for (const k in BRAND_ALIASES) {
+                if (BRAND_ALIASES[k].some(a => normalizeBrand(a) === norm)) return k;
+            }
+            return null;
+        }
+        // 品牌 → 圖檔 URL
+        const BRAND_ICON_URL = {
+            '7eleven': './img/brands/7eleven.png',
+            'familymart': './img/brands/familymart.png',
+            'hilife': './img/brands/hilife.png',
+            'okmart': './img/brands/okmart.png'
+        };
 
-        fetch('./data/map.geojson', { cache: 'no-store' })
+        // 產生 DivIcon（外層 div 交給 Leaflet 位移；我們只縮放內層 <img>）
+        function makeBrandDivIcon(url) {
+            return L.divIcon({
+                html: `<img class="brand-img" src="${url}" width="28" height="28" alt="">`,
+                className: 'brand-icon', // 外層 div 的 class（保留就好）
+                iconSize: [28, 28],
+                iconAnchor: [14, 28],
+                popupAnchor: [0, -24]
+            });
+        }
+
+        // 找不到品牌時的預設，也改成 DivIcon，並給內層 .brand-img 好一起縮放
+        const FALLBACK_ICON = L.divIcon({
+            html: '<span class="brand-img" style="font-size:22px;line-height:1">🏪</span>',
+            className: 'brand-icon',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+            popupAnchor: [0, -18]
+        });
+
+        // ====== 圖層控制器：等兩個層都載完再安裝 ======
+        function tryAddLayerControl() {
+            if (layerControl) { // 已存在就更新圖層集合
+                layerControl.remove();
+                layerControl = null;
+            }
+            if (polygonsLayer || convenienceLayer) {
+                layerControl = L.control.layers(
+                    null, {
+                        //'土地分配': polygonsLayer || L.layerGroup(),(暫時關閉)
+                        '便利商店': convenienceLayer || L.layerGroup()
+                    }, {
+                        collapsed: false
+                    }
+                ).addTo(map);
+            }
+        }
+
+        fetch('./data/map.geojson', {
+                cache: 'no-store'
+            })
             .then(response => response.json())
             .then(data => {
-                polygonsLayer  = L.geoJSON(data, {
+                polygonsLayer = L.geoJSON(data, {
                     style: function(feature) {
                         let styleObj = {
                             color: getColor(feature),
@@ -313,8 +321,8 @@
                             // 自動平移地圖（形心向北偏移）
                             map.panTo([center.lat + 0.0015, center.lng]);
                         });
-							
-							// --- popup 內容（含圖片） ---
+
+                        // --- popup 內容（含圖片） ---
                         var props = feature.properties;
                         var info = '';
                         for (var key in props) {
@@ -336,8 +344,8 @@
                                 });
                             });
                         });
-						
-						// --- emoji 中央標記（依用途/管理人） ---
+
+                        // --- emoji 中央標記（依用途/管理人） ---
                         if (feature.geometry.type === "Polygon") {
                             var latlngs = feature.geometry.coordinates[0].map(function(coord) {
                                 return [coord[1], coord[0]];
@@ -370,8 +378,8 @@
                                 }).addTo(map);
                             }
                         }
-						
-						// --- 點擊高亮（1 秒） ---
+
+                        // --- 點擊高亮（1 秒） ---
                         layer.on('click', function(e) {
                             layer.setStyle({
                                 weight: 3,
@@ -388,45 +396,54 @@
                         });
                     }
                 }).addTo(map);
-		        // 收集可高亮的 polygon 圖層（供搜尋）
-		        collectFeatureLayers();
-		        tryAddLayerControl();
+                // 收集可高亮的 polygon 圖層（供搜尋）
+                collectFeatureLayers();
+                tryAddLayerControl();
             })
             .catch(error => console.error('map.GeoJSON 加載失敗:', error));
-		
-		// ====== 載入「便利商店點位」GeoJSON（./data/convenience.geojson） ======
-	    fetch('./data/convenience.geojson', { cache: 'no-store' })
-	      .then(r => r.json())
-	      .then(pts => {
-	        convenienceLayer = L.geoJSON(pts, {
-	          pointToLayer: (feature, latlng) => {
-	            const p = feature.properties || {};
-	            const key = brandKeyFrom(p.品牌 ?? p.brand ?? '');
-	            const icon = key ? BRAND_ICONS[key] : FALLBACK_ICON;
-	            return L.marker(latlng, { icon });
-	          },
-	          onEachFeature: (feature, layer) => {
-	            const p = feature.properties || {};
-	            layer.bindPopup(
-	              `<b>${p.名稱 || p.name || '便利商店'}</b>` +
-	              (p.品牌 || p.brand ? `<br>品牌：${p.品牌 || p.brand}` : '') +
-	              (p.地址 || p.address ? `<br>地址：${p.地址 || p.address}` : '')
-	            );
-	          }
-	        }).addTo(map);
-			applyMarkerScale();
-	        tryAddLayerControl();
-	      })
-	      	.catch(err => console.error('convenience.geojson 載入失敗：', err));
-			// ====== 讓品牌 icon 會跟著地圖縮放 ======
-			map.whenReady(applyMarkerScale);   // 地圖載好先套一次
-			map.on('zoom', () => requestAnimationFrame(applyMarkerScale)); // 縮放過程中：等 Leaflet 先更新 translate，再在下一幀補上 scale
 
-			// 從圖層控制器把「便利商店」打開時，再套一次
-			map.on('overlayadd', (e) => { if (e.layer === convenienceLayer) applyMarkerScale(); });
+        // ====== 載入「便利商店點位」GeoJSON（./data/convenience.geojson） ======
+        fetch('./data/convenience.geojson', {
+                cache: 'no-store'
+            })
+            .then(r => r.json())
+            .then(pts => {
+                convenienceLayer = L.geoJSON(pts, {
+                    pointToLayer: (feature, latlng) => {
+                        const p = feature.properties || {};
+                        const key = brandKeyFrom(p.品牌 ? ? p.brand ? ? '');
+                        const url = key ? BRAND_ICON_URL[key] : null;
+                        const icon = url ? makeBrandDivIcon(url) : FALLBACK_ICON;
+                        return L.marker(latlng, {
+                            icon
+                        });
+                    },
+                    onEachFeature: (feature, layer) => {
+                        const p = feature.properties || {};
+                        layer.bindPopup(
+                            `<b>${p.名稱 || p.name || '便利商店'}</b>` +
+                            (p.品牌 || p.brand ? `<br>品牌：${p.品牌 || p.brand}` : '') +
+                            (p.地址 || p.address ? `<br>地址：${p.地址 || p.address}` : '')
+                        );
+                    }
+                }).addTo(map);
+                applyMarkerScale();
+                tryAddLayerControl();
+            })
+            .catch(err => console.error('convenience.geojson 載入失敗：', err));
+        // ====== 讓品牌 icon 會跟著地圖縮放 ======
+        map.whenReady(applyMarkerScale); // 地圖載好先套一次
+        map.on('zoom', () => requestAnimationFrame(applyMarkerScale)); // 縮放過程中：等 Leaflet 先更新 translate，再在下一幀補上 scale
 
-			// 其他情況有 marker 被加入地圖時（保險）
-			map.on('layeradd',  (e) => { if (e.layer && e.layer.getElement) applyMarkerScale(); });
+        // 從圖層控制器把「便利商店」打開時，再套一次
+        map.on('overlayadd', (e) => {
+            if (e.layer === convenienceLayer) applyMarkerScale();
+        });
+
+        // 其他情況有 marker 被加入地圖時（保險）
+        map.on('layeradd', (e) => {
+            if (e.layer && e.layer.getElement) applyMarkerScale();
+        });
     </script>
 
     <script>
@@ -436,37 +453,55 @@
         }
 
         // 收集所有 geojson 圖層（需在 geojson 載入後呼叫）
-	    function collectFeatureLayers() {
-	      window._featureLayers = [];
-	      map.eachLayer(function(layer) {
-	        if (layer.feature &&
-	            layer.feature.properties &&
-	            layer.setStyle &&
-	            (layer.feature.geometry.type === 'Polygon' || layer.feature.geometry.type === 'MultiPolygon')) {
-	          window._featureLayers.push({ feature: layer.feature, layer: layer });
-	        }
-	      });
-	    }
+        function collectFeatureLayers() {
+            window._featureLayers = [];
+            map.eachLayer(function(layer) {
+                if (layer.feature &&
+                    layer.feature.properties &&
+                    layer.setStyle &&
+                    (layer.feature.geometry.type === 'Polygon' || layer.feature.geometry.type === 'MultiPolygon')) {
+                    window._featureLayers.push({
+                        feature: layer.feature,
+                        layer: layer
+                    });
+                }
+            });
+        }
 
         // 呼叫一次以收集
         setTimeout(collectFeatureLayers, 1000); // 確保 geojson 載入完成
 
-	    function highlightSearchedPolygons(keyword) {
-	      window._highlightedLayers.forEach(obj => {
-	        obj.layer.setStyle({ weight: 1, color: getColor(obj.feature), fillOpacity: 0.6, opacity: 1 });
-	      });
-	      window._highlightedLayers = [];
-	      if (!keyword) return;
-	      window._featureLayers.forEach(function(obj) {
-	        const m = obj.feature.properties.管理人 || '';
-	        if (stripMask(m).indexOf(stripMask(keyword)) !== -1) {
-	          obj.layer.setStyle({ color: '#FF00EA', weight: 5, fillOpacity: 0.85, opacity: 1 });
-	          window._highlightedLayers.push(obj);
-	        } else {
-	          obj.layer.setStyle({ weight: 1, color: getColor(obj.feature), fillOpacity: 0.6, opacity: 1 });
-	        }
-	      });
-	    }
+        function highlightSearchedPolygons(keyword) {
+            window._highlightedLayers.forEach(obj => {
+                obj.layer.setStyle({
+                    weight: 1,
+                    color: getColor(obj.feature),
+                    fillOpacity: 0.6,
+                    opacity: 1
+                });
+            });
+            window._highlightedLayers = [];
+            if (!keyword) return;
+            window._featureLayers.forEach(function(obj) {
+                const m = obj.feature.properties.管理人 || '';
+                if (stripMask(m).indexOf(stripMask(keyword)) !== -1) {
+                    obj.layer.setStyle({
+                        color: '#FF00EA',
+                        weight: 5,
+                        fillOpacity: 0.85,
+                        opacity: 1
+                    });
+                    window._highlightedLayers.push(obj);
+                } else {
+                    obj.layer.setStyle({
+                        weight: 1,
+                        color: getColor(obj.feature),
+                        fillOpacity: 0.6,
+                        opacity: 1
+                    });
+                }
+            });
+        }
 
         document.getElementById('managerSearch').addEventListener('input', function(e) {
             highlightSearchedPolygons(e.target.value.trim());
