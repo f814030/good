@@ -1,1 +1,1 @@
-{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"名稱":"7-11 明日城"},"geometry":{"coordinates":[121.44126577770953,25.044827182095247],"type":"Point"},"id":0}]}
+{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"名稱":"7-11 明日城","品牌":"7eleven","類型":"便利商店"},"geometry":{"coordinates":[121.44126577770953,25.044827182095247],"type":"Point"},"id":0}]}
