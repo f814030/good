@@ -76,11 +76,11 @@
     let convenienceLayer;  // 點層（./data/convenience.geojson）
     let restaurantLayer;  // 點層（./data/restaurant.geojson）
     let layerControl;      // 圖層控制器
+	const POI_MIN_ZOOM = 18;   // 低於這個 zoom 就隱藏（數值越大 → 要放得越近才會顯示）
     window._highlightedLayers = [];
     window._featureLayers = [];
     
     // === 低縮放自動隱藏便利商店 icon ===
-    const CONVENIENCE_MIN_ZOOM = 18;    // 低於這個 zoom 就隱藏（數值越大 → 要放得越近才會顯示）
     let convenienceOverlayEnabled = true;  // 使用者目前是否在圖層控制器「有勾便利商店」
 
     function setConvenienceIconsVisible(visible) {
@@ -94,10 +94,27 @@
     function updateConvenienceIconsVisibility() {
       if (!convenienceLayer) return;
       if (!convenienceOverlayEnabled) return;  // 使用者手動關掉時，不用管縮放
-      const shouldShow = map.getZoom() >= CONVENIENCE_MIN_ZOOM;
+      const shouldShow = map.getZoom() >= POI_MIN_ZOOM;
       setConvenienceIconsVisible(shouldShow);
     }
 
+	// === 低縮放自動隱藏「餐廳/飲食」 icon（和便利商店一樣的規則） ===
+	let restaurantOverlayEnabled = true;
+
+	function setRestaurantIconsVisible(visible) {
+	  if (!restaurantLayer) return;
+	  restaurantLayer.eachLayer(mk => {
+	    const el = mk.getElement && mk.getElement();
+	    if (el) el.style.display = visible ? '' : 'none';
+	  });
+	}
+
+	function updateRestaurantIconsVisibility() {
+	  if (!restaurantLayer) return;
+	  if (!restaurantOverlayEnabled) return; // 使用者手動關閉時不干預
+	  const shouldShow = map.getZoom() >= POI_MIN_ZOOM;
+	  setRestaurantIconsVisible(shouldShow);
+	}
 
     // ====== 品牌圖示（PNG；不做縮放） ======
 	function normalizeBrand(b) {
@@ -361,32 +378,41 @@
 	        );
 	      }
 	    }).addTo(map);
-
-	    // 讓圖層控制器出現「餐飲（早餐/餐廳）」切換
-	    tryAddLayerControl();
+		restaurantOverlayEnabled = true;     // 初始視為「有勾選」
+		updateRestaurantIconsVisibility();   // 依目前 zoom 先決定顯示/隱藏
+	    tryAddLayerControl();				// 讓圖層控制器出現「餐飲（早餐/餐廳）」切換
 	  })
 	  .catch(err => console.error('restaurant.geojson 載入失敗：', err));
 
-      // === 低縮放自動顯示/隱藏便利商店 icon ===
-      // 縮放結束時，依門檻決定顯示/隱藏
-      map.on('zoomend', updateConvenienceIconsVisibility);
+	// === 低縮放自動顯示/隱藏 icon（便利商店 + 餐廳/飲食） ===
+	// 縮放結束時，同步更新兩層
+	map.on('zoomend', () => {
+	  updateConvenienceIconsVisibility();
+	  updateRestaurantIconsVisibility();
+	});
 
-      // 使用者在圖層控制器把「便利商店」打開時：標記狀態 + 依當前 zoom 決定顯示
-      map.on('overlayadd', (e) => {
-        if (e.layer === convenienceLayer) {
-          convenienceOverlayEnabled = true;
-          updateConvenienceIconsVisibility();
-        }
-      });
+	// 使用者在圖層控制器把某層「打開」：標記狀態 + 依當前 zoom 決定顯示
+	map.on('overlayadd', (e) => {
+	  if (e.layer === convenienceLayer) {
+	    convenienceOverlayEnabled = true;
+	    updateConvenienceIconsVisibility();
+	  } else if (e.layer === restaurantLayer) {
+	    restaurantOverlayEnabled = true;
+	    updateRestaurantIconsVisibility();
+	  }
+	});
 
-      // 使用者在圖層控制器把「便利商店」關閉時：標記狀態（我們之後就不干預）
-      map.on('overlayremove', (e) => {
-        if (e.layer === convenienceLayer) {
-          convenienceOverlayEnabled = false;
-          // 也可立即把目前的 icon 收起來（可選）
-          setConvenienceIconsVisible(false);
-        }
-      });
+	// 使用者在圖層控制器把某層「關閉」：標記狀態 + 立即隱藏
+	map.on('overlayremove', (e) => {
+	  if (e.layer === convenienceLayer) {
+	    convenienceOverlayEnabled = false;
+	    setConvenienceIconsVisible(false);
+	  } else if (e.layer === restaurantLayer) {
+	    restaurantOverlayEnabled = false;
+	    setRestaurantIconsVisible(false);
+	  }
+	});
+
   </script>
 
   <script>
