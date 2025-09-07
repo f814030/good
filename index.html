@@ -2,6 +2,7 @@
 <html lang="zh-Hant">
 
 <head>
+<!--
     <script>
         document.addEventListener('contextmenu', event => event.preventDefault());
         document.addEventListener('keydown', function(e) {
@@ -10,12 +11,12 @@
             }
         });
     </script>
-
+-->
     <meta charset="UTF-8">
     <meta name="description" content="塭仔圳重劃區推案進度與土地分配圖，新莊泰山塭仔圳最新推案地圖、社宅預定地、抵費地、公園用地即時查詢，協助掌握投資與購屋決策。">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- Google tag (gtag.js) -->
+     Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-LVXHSZW7HT"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
@@ -49,6 +50,18 @@
             /* 縮放更順 */
             display: block;
         }
+        
+		/* 讓被縮放的內層元素有正確基準點與過渡 */
+		.brand-img {
+			transform-origin: 50% 100%;
+			transition: transform 120ms ease-out;
+			display: block;
+		}
+
+		/* 確保放大時不被外層 div 裁掉 */
+		.leaflet-marker-icon {
+			overflow: visible !important;
+		}
     </style>
 </head>
 
@@ -106,16 +119,24 @@
         }
 
         // 對便利商店圖層套用縮放（保留 Leaflet 的 translate3d，再接上 scale）
-        function applyMarkerScale() {
-            if (!window.convenienceLayer) return;
-            const s = scaleForZoom(map.getZoom());
-            convenienceLayer.eachLayer(mk => {
-                const wrapper = mk.getElement && mk.getElement(); // <div class="brand-icon leaflet-marker-icon ...">
-                if (!wrapper) return;
-                const img = wrapper.querySelector('.brand-img'); // 內層 <img> 或 <span>
-                if (img) img.style.transform = `scale(${s})`;
-            });
-        }
+		function applyMarkerScale() {
+			if (!window.convenienceLayer) return;
+			const s = scaleForZoom(map.getZoom());
+
+			convenienceLayer.eachLayer(mk => {
+				const wrapper = mk.getElement && mk.getElement(); // <div class="leaflet-marker-icon brand-icon ...">
+				if (!wrapper) return;
+
+				// 1) 主要：縮放內層 <img.brand-img> 或 <span.brand-img>
+				const img = wrapper.querySelector('.brand-img');
+				if (img) img.style.transform = `scale(${s})`;
+
+				// 2) 保險：在外層 wrapper 的 transform 末端附加 scale(...)（不覆蓋原本 translate3d）
+				const current = wrapper.style.transform || getComputedStyle(wrapper).transform || '';
+				const clean = current.replace(/scale\([^)]+\)/g, '').trim(); // 移除舊的 scale
+				wrapper.style.transform = `${clean} scale(${s})`;
+			});
+		}
 
         function getColor(feature) {
             if (feature.properties && feature.properties.color) {
