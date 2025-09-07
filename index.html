@@ -164,7 +164,7 @@
         popupAnchor: [0, -24]
       });
     }
-    // 找不到品牌時的預設
+    // 便利商店找不到品牌時的預設
     const FALLBACK_ICON = L.divIcon({
       html: '<span style="font-size:22px;line-height:1">🏪</span>',
       className: 'brand-icon',
@@ -172,6 +172,10 @@
       iconAnchor: [12, 12],
       popupAnchor: [0, -18]
     });
+    
+	// 餐廳/飲食沒有品牌時用的預設圖示
+	const RESTAURANT_FALLBACK_URL = './img/brands/restaurant.png';
+
 
     // ====== 圖層控制器：等層載完再安裝（目前只放便利商店；要加入面層可取消註解） ======
 	function tryAddLayerControl() {
@@ -356,16 +360,10 @@
 		  const key = brandKeyFrom(raw);
 		  const url = key ? BRAND_ICON_URL[key] : null;
 
-		  // 如果有對到品牌，就用你的品牌 PNG；否則維持 🍴
+		  // 如果有對到品牌，就用你的品牌 PNG；否則使用restaurant.png
 		  const icon = url
 		    ? makeBrandDivIcon(url)
-		    : L.divIcon({
-		        html: '<span style="font-size:20px;line-height:1.1">🍴</span>',
-		        className: 'restaurant-icon',
-		        iconSize: [20, 20],
-		        iconAnchor: [10, 18],
-		        popupAnchor: [0, -16]
-		      });
+		    : makeBrandDivIcon(RESTAURANT_FALLBACK_URL);
 
 		  return L.marker(latlng, { icon });
 		},
