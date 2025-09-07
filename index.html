@@ -97,13 +97,17 @@
 		  return +clamp(s, SCALE_CONFIG.min, SCALE_CONFIG.max).toFixed(2);
 		}
 
-		// 對便利商店圖層套用縮放
+		// 對便利商店圖層套用縮放（保留 Leaflet 的 translate3d，再接上 scale）
 		function applyMarkerScale(){
 		  if (!window.convenienceLayer) return;
 		  const s = scaleForZoom(map.getZoom());
 		  convenienceLayer.eachLayer(mk => {
 		    const el = mk.getElement && mk.getElement();
-		    if (el) el.style.transform = `scale(${s})`;
+		    if (!el) return;
+		    // 讀目前的 transform（Leaflet 會寫 translate3d），先移除舊的 scale 再加上新的
+		    const current = el.style.transform || window.getComputedStyle(el).transform || '';
+		    const clean = current.replace(/scale\([^)]+\)/, '').trim();
+		    el.style.transform = `${clean} scale(${s})`;
 		  });
 		}
 
@@ -416,17 +420,13 @@
 	      	.catch(err => console.error('convenience.geojson 載入失敗：', err));
 			// ====== 讓品牌 icon 會跟著地圖縮放 ======
 			map.whenReady(applyMarkerScale);   // 地圖載好先套一次
-			map.on('zoom', applyMarkerScale);  // 縮放過程中即時縮放 icon
+			map.on('zoom', () => requestAnimationFrame(applyMarkerScale)); // 縮放過程中：等 Leaflet 先更新 translate，再在下一幀補上 scale
 
 			// 從圖層控制器把「便利商店」打開時，再套一次
-			map.on('overlayadd', (e) => {
-			  if (e.layer === convenienceLayer) applyMarkerScale();
-			});
+			map.on('overlayadd', (e) => { if (e.layer === convenienceLayer) applyMarkerScale(); });
 
 			// 其他情況有 marker 被加入地圖時（保險）
-			map.on('layeradd', (e) => {
-			  if (e.layer && e.layer.getElement) applyMarkerScale();
-			});
+			map.on('layeradd',  (e) => { if (e.layer && e.layer.getElement) applyMarkerScale(); });
     </script>
 
     <script>
