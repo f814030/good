@@ -2,7 +2,14 @@
 <html lang="zh-Hant">
 
 <head>
-
+    <script>
+        document.addEventListener('contextmenu', event => event.preventDefault());
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I') || (e.ctrlKey && e.key === 'u')) {
+                e.preventDefault();
+            }
+        });
+    </script>
 
     <meta charset="UTF-8">
     <meta name="description" content="塭仔圳重劃區推案進度與土地分配圖，新莊泰山塭仔圳最新推案地圖、社宅預定地、抵費地、公園用地即時查詢，協助掌握投資與購屋決策。">
@@ -10,7 +17,15 @@
 
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-LVXHSZW7HT"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
 
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+        gtag('js', new Date());
+        gtag('config', 'G-LVXHSZW7HT');
+    </script>
 
     <title>📍 新莊泰山塭仔圳推案與土地分配地圖 📍</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
@@ -53,15 +68,359 @@
     </style>
 
     <div id="searchBar" style="position:fixed;top:15px;left:50%;transform:translateX(-50%);z-index:9999;background:rgba(255,255,255,0.96);border-radius:10px;padding:8px 12px 6px 12px;box-shadow:0 2px 6px rgba(0,0,0,0.08);display:flex;gap:10px;">
-        <input type="text" id="managerSearch" placeholder="搜尋管理人關鍵字..." style="font-size:15px;padding:3px 8px;">
+        <input type="text" id="managerSearch" placeholder="輸入管理人關鍵字..." style="font-size:15px;padding:3px 8px;">
         <button id="clearHighlight" style="background:#FFD600;color:#333;font-weight:bold;border:none;border-radius:6px;padding:3px 14px;cursor:pointer;">清除</button>
     </div>
 
     <div id="map"></div>
-    
+    <script>
+        var map = L.map('map').setView([25.0403, 121.4358], 16);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 20,attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
 
+        function getColor(feature) {
+            if (feature.properties && feature.properties.color) {
+                return feature.properties.color;
+            }
+            return '#90aaad';
+        }
+        function stripMask(str) { return (str || '').replace(/[○＊●_]/g, ''); }
 
-<script src="mainobf.js"></script>
+	    let polygonsLayer;     // 面層（./data/map.geojson）
+	    let convenienceLayer;  // 點層（./data/convenience.geojson）
+	    let layerControl;      // 圖層控制器
+        window._highlightedLayers = [];
+        window._featureLayers = [];
+
+	    // ====== 品牌圖示（請放置對應檔案：./img/brands/*.png） ======
+	    function normalizeBrand(b) {
+	      return (b || '').toString().trim().toLowerCase().replace(/[^\w]/g, '');
+	    }
+	    const BRAND_ALIASES = {
+	      '7eleven':    ['7-eleven','7_11','7eleven','統一超商','seven'],
+	      'familymart': ['familymart','全家','全家便利商店'],
+	      'hilife':     ['hi-life','hilife','萊爾富'],
+	      'okmart':     ['ok','okmart','ok超商']
+	    };
+	    function brandKeyFrom(raw) {
+	      const norm = normalizeBrand(raw);
+	      if (['7eleven','familymart','hilife','okmart'].includes(norm)) return norm;
+	      for (const k in BRAND_ALIASES) {
+	        if (BRAND_ALIASES[k].some(a => normalizeBrand(a) === norm)) return k;
+	      }
+	      return null;
+	    }
+	    const BRAND_ICONS = {
+	      '7eleven': L.icon({ iconUrl: './img/brands/7eleven.png',  iconSize: [28,28], iconAnchor: [14,28], popupAnchor: [0,-24] }),
+	      'familymart': L.icon({ iconUrl: './img/brands/familymart.png', iconSize: [28,28], iconAnchor: [14,28], popupAnchor: [0,-24] }),
+	      'hilife': L.icon({ iconUrl: './img/brands/hilife.png', iconSize: [28,28], iconAnchor: [14,28], popupAnchor: [0,-24] }),
+	      'okmart': L.icon({ iconUrl: './img/brands/okmart.png', iconSize: [28,28], iconAnchor: [14,28], popupAnchor: [0,-24] })
+	    };
+	    const FALLBACK_ICON = L.divIcon({ html: '🏪', className: 'store-icon', iconSize: [24,24], iconAnchor: [12,12] });
+
+	    // ====== 圖層控制器：等兩個層都載完再安裝 ======
+	    function tryAddLayerControl() {
+	      if (layerControl) { // 已存在就更新圖層集合
+	        layerControl.remove();
+	        layerControl = null;
+	      }
+	      if (polygonsLayer || convenienceLayer) {
+	        layerControl = L.control.layers(
+	          null,
+	          {
+	            '土地分配': polygonsLayer || L.layerGroup(),
+	            '便利商店': convenienceLayer || L.layerGroup()
+	          },
+	          { collapsed: false }
+	        ).addTo(map);
+	      }
+	    }
+
+        fetch('./data/map.geojson', { cache: 'no-store' })
+            .then(response => response.json())
+            .then(data => {
+                L.geoJSON(data, {
+                    style: function(feature) {
+                        let styleObj = {
+                            color: getColor(feature),
+                            weight: 1,
+                            fillOpacity: 0.6,
+                            fillColor: getColor(feature)
+                        };
+                        if (feature.properties && feature.properties.管理人 === "社宅預定地") {
+                            styleObj.fillColor = "#B39DDB";
+                            styleObj.color = "#5E35B1";
+                        }
+                        if (feature.properties && feature.properties.用途 === "機捷泰山站") {
+                            styleObj.fillColor = "#868686";
+                            styleObj.color = "#3c00ea";
+                            styleObj.weight = 4;
+                        }
+                        if (feature.properties && feature.properties.用途 === "輔大捷運站4號出口") {
+                            styleObj.fillColor = "#868686";
+                            styleObj.color = "#3c00ea";
+                            styleObj.weight = 4;
+                        }
+                        if (feature.properties && feature.properties.用途 === "機捷貴和站") {
+                            styleObj.fillColor = "#868686";
+                            styleObj.color = "#3c00ea";
+                            styleObj.weight = 4;
+                        }
+                        return styleObj;
+                    },
+                    onEachFeature: function(feature, layer) {
+
+                        // ----- 點擊色塊產生同心圓與標籤 -----
+                        layer.on('click', function(e) {
+                            // 1. 先移除舊圓和舊標籤/按鈕
+                            if (window._bufferCircle300) map.removeLayer(window._bufferCircle300);
+                            if (window._bufferCircle500) map.removeLayer(window._bufferCircle500);
+                            if (window._bufferCircleLabel300) map.removeLayer(window._bufferCircleLabel300);
+                            if (window._bufferCircleLabel500) map.removeLayer(window._bufferCircleLabel500);
+                            if (window._bufferCircleClearBtn) map.removeLayer(window._bufferCircleClearBtn);
+                            // 2. 計算形心
+                            var latlngs = feature.geometry.coordinates[0].map(function(coord) {
+                                return [coord[1], coord[0]];
+                            });
+                            var bounds = L.latLngBounds(latlngs);
+                            var center = bounds.getCenter();
+
+                            // 畫圓
+                            window._bufferCircle300 = L.circle(center, {
+                                color: '#43a047',
+                                fillColor: '#b9f6ca',
+                                fillOpacity: 0.3,
+                                radius: 300,
+                                interactive: false
+                            }).addTo(map);
+                            window._bufferCircle500 = L.circle(center, {
+                                color: '#ffb300',
+                                fillColor: '#ffe082',
+                                fillOpacity: 0.2,
+                                radius: 500,
+                                interactive: false
+                            }).addTo(map);
+
+                            // 緯度往北偏移 meters 公尺
+                            function latOffset(center, meters) {
+                                return center.lat + (meters / 111320);
+                            }
+                            // 圓頂標籤
+                            window._bufferCircleLabel300 = L.marker(
+                                [latOffset(center, 300), center.lng], {
+                                    icon: L.divIcon({
+                                        className: 'circle-label',
+                                        html: '<div style="color:#388e3c; font-weight:bold; font-size:14px; background:rgba(255,255,255,0.85); border-radius:8px; padding:1px 8px; border:1px solid #43a047; display:inline-block; text-align:center;">300m</div>',
+                                        iconSize: [48, 22],
+                                        iconAnchor: [24, 11]
+                                    }),
+                                    interactive: false
+                                }
+                            ).addTo(map);
+
+                            window._bufferCircleLabel500 = L.marker(
+                                [latOffset(center, 500), center.lng], {
+                                    icon: L.divIcon({
+                                        className: 'circle-label',
+                                        html: '<div style="color:#ff6f00; font-weight:bold; font-size:14px; background:rgba(255,255,255,0.85); border-radius:8px; padding:1px 8px; border:1px solid #ffb300; display:inline-block; text-align:center;">500m</div>',
+                                        iconSize: [48, 22],
+                                        iconAnchor: [24, 11]
+                                    }),
+                                    interactive: false
+                                }
+                            ).addTo(map);
+
+                            // --- 產生圓頂右側「清除同心圓」按鈕 ---
+                            if (window._bufferCircleClearBtn) map.removeLayer(window._bufferCircleClearBtn);
+                            window._bufferCircleClearBtn = L.marker(
+                                [latOffset(center, 500) + 0.00025, center.lng + 0.0014], { // 上移約20公尺，右移
+                                    icon: L.divIcon({
+                                        className: 'circle-clear-btn',
+                                        html: '<button title="只清除同心圓" onclick="window.removeCircles();" style="background:#fff;color:#ff6f00;font-weight:bold;border:1px solid #ffb300;border-radius:12px;padding:2px 12px;font-size:13px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.08);">清除</button>',
+                                        iconSize: [52, 28],
+                                        iconAnchor: [26, 14]
+                                    }),
+                                    interactive: true
+                                }
+                            ).addTo(map);
+
+                            // 全域刪除圓圈功能
+                            window.removeCircles = function() {
+                                if (window._bufferCircle300) map.removeLayer(window._bufferCircle300);
+                                if (window._bufferCircle500) map.removeLayer(window._bufferCircle500);
+                                if (window._bufferCircleLabel300) map.removeLayer(window._bufferCircleLabel300);
+                                if (window._bufferCircleLabel500) map.removeLayer(window._bufferCircleLabel500);
+                                if (window._bufferCircleClearBtn) map.removeLayer(window._bufferCircleClearBtn);
+                            };
+
+                            // 自動平移地圖（形心向北偏移）
+                            map.panTo([center.lat + 0.0015, center.lng]);
+                        });
+							
+							// --- popup 內容（含圖片） ---
+                        var props = feature.properties;
+                        var info = '';
+                        for (var key in props) {
+                            if (key !== 'color' && key !== '圖片') {
+                                info += key + ': ' + props[key] + '<br>';
+                            }
+                        }
+                        if (props.圖片) {
+                            info += '<img src="' + props.圖片 + '" style="max-width:150px; margin-top:5px;">';
+                        }
+                        layer.bindPopup(info);
+
+                        layer.on("popupopen", function(e) {
+                            var popup = e.popup;
+                            var images = popup.getElement().querySelectorAll("img");
+                            images.forEach(function(img) {
+                                img.addEventListener("load", function() {
+                                    popup.update();
+                                });
+                            });
+                        });
+						
+						// --- emoji 中央標記（依用途/管理人） ---
+                        if (feature.geometry.type === "Polygon") {
+                            var latlngs = feature.geometry.coordinates[0].map(function(coord) {
+                                return [coord[1], coord[0]];
+                            });
+                            var bounds = L.latLngBounds(latlngs);
+                            var center = bounds.getCenter();
+                            var emoji = "";
+                            if (feature.properties.用途 === "社宅預定地") {
+                                emoji = "🏠";
+                            } else if (feature.properties.狀態 === "興建中") {
+                                emoji = "🏗️";
+                            } else if (feature.properties.管理人 === "教育局") {
+                                emoji = "🏫";
+                            } else if (feature.properties.用途 === "變電所用地") {
+                                emoji = "⚡";
+                            } else if (feature.properties.管理人 === "排除重劃") {
+                                emoji = "🚫";
+                            } else if (feature.properties.用途 === "行人便道") {
+                                emoji = "🚶‍♀";
+                            }
+
+                            if (emoji !== "") {
+                                var icon = L.divIcon({
+                                    html: '<div style="font-size: 14px;">' + emoji + '</div>',
+                                    className: "",
+                                    iconSize: [24, 24]
+                                });
+                                L.marker(center, {
+                                    icon: icon
+                                }).addTo(map);
+                            }
+                        }
+						
+						// --- 點擊高亮（1 秒） ---
+                        layer.on('click', function(e) {
+                            layer.setStyle({
+                                weight: 3,
+                                color: '#FFFF00',
+                                fillOpacity: 0.7
+                            });
+                            setTimeout(function() {
+                                layer.setStyle({
+                                    weight: 1,
+                                    color: getColor(feature),
+                                    fillOpacity: 0.5
+                                });
+                            }, 1000);
+                        });
+                    }
+                }).addTo(map);
+		        // 收集可高亮的 polygon 圖層（供搜尋）
+		        collectFeatureLayers();
+		        tryAddLayerControl();
+            })
+            .catch(error => console.error('map.GeoJSON 加載失敗:', error));
+		
+		// ====== 載入「便利商店點位」GeoJSON（./data/convenience.geojson） ======
+	    fetch('./data/convenience.geojson', { cache: 'no-store' })
+	      .then(r => r.json())
+	      .then(pts => {
+	        convenienceLayer = L.geoJSON(pts, {
+	          pointToLayer: (feature, latlng) => {
+	            const p = feature.properties || {};
+	            const key = brandKeyFrom(p.品牌 ?? p.brand ?? '');
+	            const icon = key ? BRAND_ICONS[key] : FALLBACK_ICON;
+	            return L.marker(latlng, { icon });
+	          },
+	          onEachFeature: (feature, layer) => {
+	            const p = feature.properties || {};
+	            layer.bindPopup(
+	              `<b>${p.名稱 || p.name || '便利商店'}</b>` +
+	              (p.品牌 || p.brand ? `<br>品牌：${p.品牌 || p.brand}` : '') +
+	              (p.地址 || p.address ? `<br>地址：${p.地址 || p.address}` : '')
+	            );
+	          }
+	        }).addTo(map);
+
+	        tryAddLayerControl();
+	      })
+	      .catch(err => console.error('convenience.geojson 載入失敗：', err));
+    </script>
+
+    <script>
+        // ==== 管理人高亮搜尋功能（只影響 polygon） ====
+        function stripMask(str) {
+            return (str || "").replace(/[○＊●_]/g, "");
+        }
+
+        // 收集所有 geojson 圖層（需在 geojson 載入後呼叫）
+	    function collectFeatureLayers() {
+	      window._featureLayers = [];
+	      map.eachLayer(function(layer) {
+	        if (layer.feature &&
+	            layer.feature.properties &&
+	            layer.setStyle &&
+	            (layer.feature.geometry.type === 'Polygon' || layer.feature.geometry.type === 'MultiPolygon')) {
+	          window._featureLayers.push({ feature: layer.feature, layer: layer });
+	        }
+	      });
+	    }
+
+        // 呼叫一次以收集
+        setTimeout(collectFeatureLayers, 1000); // 確保 geojson 載入完成
+
+	    function highlightSearchedPolygons(keyword) {
+	      window._highlightedLayers.forEach(obj => {
+	        obj.layer.setStyle({ weight: 1, color: getColor(obj.feature), fillOpacity: 0.6, opacity: 1 });
+	      });
+	      window._highlightedLayers = [];
+	      if (!keyword) return;
+	      window._featureLayers.forEach(function(obj) {
+	        const m = obj.feature.properties.管理人 || '';
+	        if (stripMask(m).indexOf(stripMask(keyword)) !== -1) {
+	          obj.layer.setStyle({ color: '#FF00EA', weight: 5, fillOpacity: 0.85, opacity: 1 });
+	          window._highlightedLayers.push(obj);
+	        } else {
+	          obj.layer.setStyle({ weight: 1, color: getColor(obj.feature), fillOpacity: 0.6, opacity: 1 });
+	        }
+	      });
+	    }
+
+        document.getElementById('managerSearch').addEventListener('input', function(e) {
+            highlightSearchedPolygons(e.target.value.trim());
+        });
+
+        document.getElementById('clearHighlight').addEventListener('click', function() {
+            window._highlightedLayers.forEach(obj => {
+                obj.layer.setStyle({
+                    weight: 1,
+                    color: getColor(obj.feature),
+                    fillOpacity: 0.6,
+                    opacity: 1
+                });
+            });
+            window._highlightedLayers = [];
+            document.getElementById('managerSearch').value = '';
+        });
+    </script>
+
 </body>
 
 </html>
