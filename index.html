@@ -74,6 +74,7 @@
     // ====== 全域變數 ======
     let polygonsLayer;     // 面層（./data/map.geojson）
     let convenienceLayer;  // 點層（./data/convenience.geojson）
+    let restaurantLayer;  // 點層（./data/restaurant.geojson）
     let layerControl;      // 圖層控制器
     window._highlightedLayers = [];
     window._featureLayers = [];
@@ -143,19 +144,20 @@
     });
 
     // ====== 圖層控制器：等層載完再安裝（目前只放便利商店；要加入面層可取消註解） ======
-    function tryAddLayerControl() {
-      if (layerControl) { layerControl.remove(); layerControl = null; }
-      if (polygonsLayer || convenienceLayer) {
-        layerControl = L.control.layers(
-          null,
-          {
-            // '土地分配': polygonsLayer, // ← 想切換面層時取消註解
-            '便利商店': convenienceLayer
-          },
-          { collapsed: false }
-        ).addTo(map);
-      }
-    }
+	function tryAddLayerControl() {
+	  if (layerControl) { layerControl.remove(); layerControl = null; }
+
+	  const overlays = {};
+	  // 想恢復面層切換就取消下一行註解
+	  // if (polygonsLayer) overlays['土地分配'] = polygonsLayer;
+	  if (convenienceLayer) overlays['便利商店'] = convenienceLayer;
+	  if (restaurantLayer)  overlays['餐廳/飲食'] = restaurantLayer;
+
+	  if (Object.keys(overlays).length) {
+	    layerControl = L.control.layers(null, overlays, { collapsed: false }).addTo(map);
+	  }
+	}
+
 
     // ====== 載入「面」GeoJSON（./data/map.geojson） ======
     fetch('./data/map.geojson', { cache: 'no-store' })
@@ -307,11 +309,42 @@
         }).addTo(map);
         convenienceOverlayEnabled = true;      // 初始視為有勾選
         updateConvenienceIconsVisibility();     // 依目前 zoom 先決定要不要顯示
-
-
         tryAddLayerControl();
       })
       .catch(err => console.error('convenience.geojson 載入失敗：', err));
+      
+	// ====== 載入「餐飲」點位 GeoJSON（./data/restaurant.geojson） ======
+	fetch('./data/restaurant.geojson', { cache: 'no-store' })
+	  .then(r => r.json())
+	  .then(geo => {
+	    restaurantLayer = L.geoJSON(geo, {
+	      pointToLayer: (feature, latlng) => {
+	        // 先用🍴通用圖示；之後要改成 PNG 也很容易
+	        const icon = L.divIcon({
+	          html: '<span style="font-size:20px;line-height:1.1">🍴</span>',
+	          className: 'restaurant-icon',
+	          iconSize: [20, 20],
+	          iconAnchor: [10, 18],
+	          popupAnchor: [0, -16]
+	        });
+	        return L.marker(latlng, { icon });
+	      },
+	      onEachFeature: (feature, layer) => {
+	        const p = feature.properties || {};
+	        layer.bindPopup(
+	          `<b>${p.名稱 || p.name || '餐飲店家'}</b>` +
+	          (p.類型 || p.type || p.類別 ? `<br>類型：${p.類型 || p.type || p.類別}` : '') +
+	          (p.地址 || p.address       ? `<br>地址：${p.地址 || p.address}`       : '') +
+	          (p.電話 || p.tel || p.phone? `<br>電話：${p.電話 || p.tel || p.phone}`: '')
+	        );
+	      }
+	    }).addTo(map);
+
+	    // 讓圖層控制器出現「餐飲（早餐/餐廳）」切換
+	    tryAddLayerControl();
+	  })
+	  .catch(err => console.error('restaurant.geojson 載入失敗：', err));
+
       // === 低縮放自動顯示/隱藏便利商店 icon ===
       // 縮放結束時，依門檻決定顯示/隱藏
       map.on('zoomend', updateConvenienceIconsVisibility);
