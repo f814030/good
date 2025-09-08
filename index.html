@@ -440,6 +440,10 @@
 		  if (/藥|藥局|藥妝|pharm/.test(t))      emoji = '💊';
 		  else if (/洗衣|laundry/.test(t))        emoji = '🧺';
 		  else if (/五金|hardware|工具/.test(t))  emoji = '🛠️';
+		  else if (/水果|水果行/.test(t))  		emoji = '🍇';
+		  else if (/麵包|麵包店/.test(t))  		emoji = '🥐';
+		  else if (/幼兒園|托嬰中心/.test(t))  		emoji = '🧑‍🏫';
+		  else if (/甜點店|糕點店/.test(t))  		emoji = '🍩';
 
 		  const icon = L.divIcon({
 		    html: `<span style="font-size:20px;line-height:1.1">${emoji}</span>`,
