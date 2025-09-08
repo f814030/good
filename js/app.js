@@ -1,18 +1,16 @@
-  <script>
+
     document.addEventListener('contextmenu', event => event.preventDefault());
     document.addEventListener('keydown', function(e) {
       if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I') || (e.ctrlKey && e.key === 'u')) {
         e.preventDefault();
       }
     });
-  </script>
-  <script>
+
     window.dataLayer = window.dataLayer || [];
     function gtag(){ dataLayer.push(arguments); }
     gtag('js', new Date());
     gtag('config', 'G-LVXHSZW7HT');
-  </script>
-  <script>
+
     // ====== 地圖初始化 ======
     var map = L.map('map').setView([25.0403, 121.4358], 16);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -455,9 +453,7 @@
 	  }
 	});
 
-  </script>
 
-  <script>
     // ==== 管理人高亮搜尋功能（只影響 polygon） ====
     function stripMask(str) { return (str || "").replace(/[○＊●_]/g, ""); }
 
@@ -502,4 +498,3 @@
       window._highlightedLayers = [];
       document.getElementById('managerSearch').value = '';
     });
-  </script>
