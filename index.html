@@ -74,8 +74,9 @@
     // ====== 全域變數 ======
     let polygonsLayer;     // 面層（./data/map.geojson）
     let convenienceLayer;  // 點層（./data/convenience.geojson）
-    let restaurantLayer;  // 點層（./data/restaurant.geojson）
+    let restaurantLayer;   // 點層（./data/restaurant.geojson）
     let layerControl;      // 圖層控制器
+    let householdLayer;    // 點層（./data/household.geojson）
 	const POI_MIN_ZOOM = 18;   // 低於這個 zoom 就隱藏（數值越大 → 要放得越近才會顯示）
     window._highlightedLayers = [];
     window._featureLayers = [];
@@ -114,6 +115,24 @@
 	  if (!restaurantOverlayEnabled) return; // 使用者手動關閉時不干預
 	  const shouldShow = map.getZoom() >= POI_MIN_ZOOM;
 	  setRestaurantIconsVisible(shouldShow);
+	}
+
+	// === 低縮放自動隱藏「民生服務」 icon ===
+	let householdOverlayEnabled = true;
+
+	function setHouseholdIconsVisible(visible) {
+	  if (!householdLayer) return;
+	  householdLayer.eachLayer(mk => {
+	    const el = mk.getElement && mk.getElement();
+	    if (el) el.style.display = visible ? '' : 'none';
+	  });
+	}
+
+	function updateHouseholdIconsVisibility() {
+	  if (!householdLayer) return;
+	  if (!householdOverlayEnabled) return; // 使用者手動關閉時不干預
+	  const shouldShow = map.getZoom() >= POI_MIN_ZOOM;
+	  setHouseholdIconsVisible(shouldShow);
 	}
 
     // ====== 品牌圖示（PNG；不做縮放） ======
@@ -186,6 +205,7 @@
 	  // if (polygonsLayer) overlays['土地分配'] = polygonsLayer;
 	  if (convenienceLayer) overlays['便利商店'] = convenienceLayer;
 	  if (restaurantLayer)  overlays['餐廳/飲食'] = restaurantLayer;
+	  if (householdLayer)   overlays['民生服務'] = householdLayer;
 
 	  if (Object.keys(overlays).length) {
 	    layerControl = L.control.layers(null, overlays, { collapsed: false }).addTo(map);
@@ -384,32 +404,73 @@
 	  })
 	  .catch(err => console.error('restaurant.geojson 載入失敗：', err));
 
-	// === 低縮放自動顯示/隱藏 icon（便利商店 + 餐廳/飲食） ===
+	//====== 載入「民生服務」點位 GeoJSON（./data/household.geojson） ======
+	fetch('./data/household.geojson', { cache: 'no-store' })
+	  .then(r => r.json())
+	  .then(geo => {
+	    householdLayer = L.geoJSON(geo, {
+	      pointToLayer: (feature, latlng) => {
+	        const p = feature.properties || {};
+	        // 依「類型」挑 emoji：藥局→💊、洗衣→🧺、五金→🛠️，其他用 🧰
+	        const t = (p.類型 || p.type || '').toString().toLowerCase();
+	        let emoji = '🧰';
+	        if (/藥|藥局|藥妝|pharm/.test(t))   emoji = '💊';
+	        else if (/洗衣|laundry/.test(t))     emoji = '🧺';
+	        else if (/五金|hardware|工具/.test(t)) emoji = '🛠️';
+
+	        const icon = L.divIcon({
+	          html: `<span style="font-size:20px;line-height:1.1">${emoji}</span>`,
+	          className: 'household-icon',
+	          iconSize: [20, 20],
+	          iconAnchor: [10, 18],
+	          popupAnchor: [0, -16]
+	        });
+	        return L.marker(latlng, { icon });
+	      },
+	      onEachFeature: (feature, layer) => {
+	        const p = feature.properties || {};
+	        layer.bindPopup(
+	          `<b>${p.名稱 || p.name || '民生服務'}</b>` +
+	          (p.類型 || p.type ? `<br>類型：${p.類型 || p.type}` : '') +
+	          (p.地址 || p.address ? `<br>地址：${p.地址 || p.address}` : '') +
+	          (p.電話 || p.tel || p.phone ? `<br>電話：${p.電話 || p.tel || p.phone}` : '')
+	        );
+	      }
+	    }).addTo(map);
+
+	    householdOverlayEnabled = true; // 初始化：以目前 zoom 決定先顯示或隱藏
+	    updateHouseholdIconsVisibility();
+		tryAddLayerControl();  // 把「民生服務」加到圖層控制器
+	  })
+	  .catch(err => console.error('household.geojson 載入失敗：', err));
+
+	// === 低縮放自動顯示/隱藏 icon（便利商店 + 餐廳/飲食 + 民生服務） ===
 	// 縮放結束時，同步更新兩層
 	map.on('zoomend', () => {
 	  updateConvenienceIconsVisibility();
 	  updateRestaurantIconsVisibility();
+	  updateHouseholdIconsVisibility();
 	});
 
 	// 使用者在圖層控制器把某層「打開」：標記狀態 + 依當前 zoom 決定顯示
 	map.on('overlayadd', (e) => {
 	  if (e.layer === convenienceLayer) {
-	    convenienceOverlayEnabled = true;
-	    updateConvenienceIconsVisibility();
+	    convenienceOverlayEnabled = true;  updateConvenienceIconsVisibility();
 	  } else if (e.layer === restaurantLayer) {
-	    restaurantOverlayEnabled = true;
-	    updateRestaurantIconsVisibility();
+	    restaurantOverlayEnabled = true;   updateRestaurantIconsVisibility();
+	  } else if (e.layer === householdLayer) {
+	    householdOverlayEnabled = true;    updateHouseholdIconsVisibility();
 	  }
 	});
 
 	// 使用者在圖層控制器把某層「關閉」：標記狀態 + 立即隱藏
 	map.on('overlayremove', (e) => {
 	  if (e.layer === convenienceLayer) {
-	    convenienceOverlayEnabled = false;
-	    setConvenienceIconsVisible(false);
+	    convenienceOverlayEnabled = false; setConvenienceIconsVisible(false);
 	  } else if (e.layer === restaurantLayer) {
-	    restaurantOverlayEnabled = false;
-	    setRestaurantIconsVisible(false);
+	    restaurantOverlayEnabled = false;  setRestaurantIconsVisible(false);
+	  } else if (e.layer === householdLayer) {
+	    householdOverlayEnabled = false;   setHouseholdIconsVisible(false);
 	  }
 	});
 
