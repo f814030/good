@@ -151,9 +151,17 @@
       'hilife':    ['hi-life','hilife','萊爾富'],
       'okmart':    ['ok','okmart','ok超商'],
       'layaburger':['laya','拉亞','拉亞漢堡'],
-      'mwd':['mwd','麥味登','麥味登早餐']
+      'mwd':['mwd','麥味登','麥味登早餐'],
+	  'watsons':     ['watsons','屈臣氏',"watson’s","watson's"],
+	  'cosmed':      ['cosmed','康是美','cosmed康是美'],
+	  'greattree':   ['greattree','大樹','大樹藥局','大樹連鎖藥局'],
+	  'dingding':    ['丁丁','丁丁藥局']
     };
-	const KNOWN_BRANDS = ['7eleven','familymart','hilife','okmart','layaburger'];
+    
+	const KNOWN_BRANDS = [
+	  '7eleven','familymart','hilife','okmart',
+	  'watsons','cosmed','greattree','dingding'
+	];
 
 	function brandKeyFrom(rawBrand) {
 	  const norm = normalizeBrand(rawBrand);
@@ -171,7 +179,11 @@
       'hilife':    './img/brands/hilife.png',
       'okmart':    './img/brands/okmart.png',
       'layaburger':'./img/brands/layaburger.png',
-      'mwd':       './img/brands/mwd.png'
+      'mwd':       './img/brands/mwd.png',
+	  'watsons':   './img/brands/watsons.png',
+	  'cosmed':    './img/brands/cosmed.png',
+	  'greattree': './img/brands/greattree.png',
+	  'dingding':  './img/brands/dingding.png'
     };
     // 使用 DivIcon 承載品牌圖片（不縮放）
     function makeBrandDivIcon(url) {
@@ -409,24 +421,35 @@
 	  .then(r => r.json())
 	  .then(geo => {
 	    householdLayer = L.geoJSON(geo, {
-	      pointToLayer: (feature, latlng) => {
-	        const p = feature.properties || {};
-	        // 依「類型」挑 emoji：藥局→💊、洗衣→🧺、五金→🛠️，其他用 🧰
-	        const t = (p.類型 || p.type || '').toString().toLowerCase();
-	        let emoji = '🧰';
-	        if (/藥|藥局|藥妝|pharm/.test(t))   emoji = '💊';
-	        else if (/洗衣|laundry/.test(t))     emoji = '🧺';
-	        else if (/五金|hardware|工具/.test(t)) emoji = '🛠️';
+		pointToLayer: (feature, latlng) => {
+		  const p = feature.properties || {};
 
-	        const icon = L.divIcon({
-	          html: `<span style="font-size:20px;line-height:1.1">${emoji}</span>`,
-	          className: 'household-icon',
-	          iconSize: [20, 20],
-	          iconAnchor: [10, 18],
-	          popupAnchor: [0, -16]
-	        });
-	        return L.marker(latlng, { icon });
-	      },
+		  // 先從「品牌/brand」抓；沒有就從「名稱/name」猜（多數店名會含品牌）
+		  const raw = (p.品牌 ?? p.brand ?? p.名稱 ?? p.name ?? '').toString();
+		  const key = brandKeyFrom(raw);
+		  const url = key ? BRAND_ICON_URL[key] : null;
+
+		  if (url) {
+		    // 有對到品牌 → 用你的 PNG
+		    return L.marker(latlng, { icon: makeBrandDivIcon(url) });
+		  }
+
+		  // 沒有品牌 → 用類型判斷 emoji（保留你原本的 fallback）
+		  const t = (p.類型 || p.type || '').toString().toLowerCase();
+		  let emoji = '🧰';
+		  if (/藥|藥局|藥妝|pharm/.test(t))      emoji = '💊';
+		  else if (/洗衣|laundry/.test(t))        emoji = '🧺';
+		  else if (/五金|hardware|工具/.test(t))  emoji = '🛠️';
+
+		  const icon = L.divIcon({
+		    html: `<span style="font-size:20px;line-height:1.1">${emoji}</span>`,
+		    className: 'household-icon',
+		    iconSize: [20, 20],
+		    iconAnchor: [10, 18],
+		    popupAnchor: [0, -16]
+		  });
+		  return L.marker(latlng, { icon });
+		},
 	      onEachFeature: (feature, layer) => {
 	        const p = feature.properties || {};
 	        layer.bindPopup(
